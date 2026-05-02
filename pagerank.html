@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PageRank Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #0A0A0F;
+  --surface: #111120;
+  --border:  rgba(255,255,255,0.08);
+  --blue:    #00D4FF;
+  --orange:  #F97316;
+  --purple:  #8B5CF6;
+  --green:   #10B981;
+  --text:    #E8E8F0;
+  --text2:   #6868A0;
+  --text3:   #383858;
+  --mono:    'Fira Code', monospace;
+  --sans:    'Fira Sans', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.title {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(120deg, var(--blue), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+}
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctrl-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.ctrl-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 32px;
+}
+.ctrl-val.purple { color: var(--purple); }
+.ctrl-val.blue   { color: var(--blue); }
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface);
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 100ms;
+}
+input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.2); }
+input[type=range].purple-thumb::-webkit-slider-thumb { background: var(--purple); }
+input[type=range].blue-thumb::-webkit-slider-thumb   { background: var(--blue); }
+
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 120ms;
+  white-space: nowrap;
+}
+.btn:hover { background: rgba(255,255,255,0.09); }
+.btn.active { background: rgba(0,212,255,0.12); border-color: rgba(0,212,255,0.3); color: var(--blue); }
+.btn-danger { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #F87171; }
+.btn-danger:hover { background: rgba(239,68,68,0.15); }
+
+/* ── Layout ── */
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Graph panel (left) ── */
+.graph-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+}
+.graph-header {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.graph-hint {
+  color: var(--text3);
+  font-size: 10px;
+  transition: color 200ms;
+}
+.graph-hint.active-hint { color: var(--orange); }
+#graphCanvas {
+  flex: 1;
+  display: block;
+  min-height: 0;
+}
+.surfer-bar {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 34px;
+}
+.surfer-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 200ms;
+}
+.surfer-msg { color: var(--text2); flex: 1; }
+.surfer-msg .hl-blue   { color: var(--blue); font-weight: 600; }
+.surfer-msg .hl-orange { color: var(--orange); font-weight: 600; }
+.surfer-msg .dim       { color: var(--text3); font-size: 10px; }
+
+/* ── Info panel (right) ── */
+.info-panel {
+  width: 520px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.section {
+  border-bottom: 1px solid var(--border);
+}
+.section-head {
+  padding: 7px 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text2);
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.section-body {
+  padding: 10px 16px 10px 12px;
+}
+
+/* ── Equation rendering ── */
+.eq-symbolic {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.sym-g { color: var(--blue);   font-weight: 600; }
+.sym-s { color: var(--green);  font-weight: 600; }
+.sym-a { color: var(--orange); font-weight: 600; }
+.sym-j { color: var(--purple); font-weight: 600; }
+
+.eq-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.eq-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.eq-leader {
+  flex-shrink: 0;
+  min-width: 90px;
+  text-align: right;
+  padding-top: 4px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.eq-leader .sc { font-weight: 600; }
+.eq-leader .sc.blue   { color: var(--blue); }
+.eq-leader .sc.orange { color: var(--orange); }
+.eq-leader .sc.purple { color: var(--purple); }
+
+/* Matrix */
+.mat {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+.mat-bl {
+  border-left: 1.5px solid rgba(255,255,255,0.25);
+  border-top:  1.5px solid rgba(255,255,255,0.25);
+  border-bottom: 1.5px solid rgba(255,255,255,0.25);
+  width: 5px;
+  flex-shrink: 0;
+}
+.mat-br {
+  border-right: 1.5px solid rgba(255,255,255,0.25);
+  border-top:   1.5px solid rgba(255,255,255,0.25);
+  border-bottom: 1.5px solid rgba(255,255,255,0.25);
+  width: 5px;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+.mat-body {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 2px;
+}
+.mat-row { display: flex; }
+.mat-cell {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 4px;
+  text-align: right;
+  white-space: nowrap;
+  line-height: 1.6;
+  min-width: 36px;
+  color: var(--text);
+}
+.mat-cell.green  { color: var(--green);  }
+.mat-cell.purple { color: #a78bfa; }
+.mat-cell.blue   { color: var(--blue);   }
+.mat-cell.zero   { color: var(--text3);  }
+
+/* ── Iteration history ── */
+#iterWrap {
+  overflow-y: auto;
+  max-height: 180px;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.iter-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.iter-table th {
+  padding: 2px 5px;
+  text-align: right;
+  color: var(--text3);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  white-space: nowrap;
+}
+.iter-table th:first-child { text-align: left; min-width: 30px; }
+.iter-table td {
+  padding: 2px 5px;
+  text-align: right;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.iter-table td:first-child { text-align: left; color: var(--text3); }
+.iter-table tr.current td { color: var(--text); background: rgba(255,255,255,0.04); }
+.iter-table tr.current td:first-child { color: var(--blue); }
+.iter-table tr.changed td { color: var(--green); }
+
+/* ── Scores ── */
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.score-label {
+  width: 22px;
+  flex-shrink: 0;
+  color: var(--text2);
+  text-align: right;
+}
+.score-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--purple);
+  transition: width 300ms ease;
+}
+.score-fill.surfer { background: var(--blue); }
+.score-val {
+  width: 44px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--text2);
+}
+.score-val.surfer { color: var(--blue); font-weight: 600; }
+
+/* ── Empty state ── */
+.empty-state {
+  padding: 20px 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.9;
+}
+.empty-state kbd {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/* ── Alpha flash ── */
+@keyframes flash {
+  0%   { color: #fff; }
+  100% { color: inherit; }
+}
+.flash { animation: flash 500ms ease-out; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">PageRank Visualizer</span>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">α</span>
+    <input type="range" id="sliderAlpha" class="purple-thumb" min="1" max="99" value="85">
+    <span class="ctrl-val purple" id="lblAlpha">0.85</span>
+  </div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">speed</span>
+    <input type="range" id="sliderSpeed" class="blue-thumb" min="1" max="5" value="2" step="1">
+    <span class="ctrl-val blue" id="lblSpeed">Slow</span>
+  </div>
+
+  <div class="ctrl-group">
+    <button class="btn" id="btnPlayPause">▶ Run</button>
+    <button class="btn" id="btnStep">Step →</button>
+    <button class="btn" id="btnResetPR">Reset PR</button>
+    <button class="btn" id="btnRandom">Random Web</button>
+    <button class="btn btn-danger" id="btnClear">Clear</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- Left: Graph -->
+  <div class="graph-panel">
+    <div class="graph-header">
+      <span>WEB GRAPH</span>
+      <span class="graph-hint" id="graphHint">Click empty area to place a node (max 8)</span>
+    </div>
+    <canvas id="graphCanvas"></canvas>
+    <div class="surfer-bar">
+      <div class="surfer-dot" id="surferDot" style="background:var(--blue)"></div>
+      <div class="surfer-msg" id="surferMsg">Add nodes to begin.</div>
+    </div>
+  </div>
+
+  <!-- Right: Info -->
+  <div class="info-panel">
+
+    <!-- Google Matrix -->
+    <div class="section">
+      <div class="section-head">
+        <span>Google Matrix</span>
+        <span style="color:var(--text3);text-transform:none;letter-spacing:0" id="matrixDim"></span>
+      </div>
+      <div class="section-body" id="eqBody">
+        <div class="empty-state">
+          Add nodes and edges to see the matrix.<br><br>
+          <kbd>Click</kbd> empty area → place node<br>
+          <kbd>Click</kbd> node → select it<br>
+          <kbd>Click</kbd> another node → connect<br>
+          <kbd>Right-click</kbd> node → delete<br>
+          <kbd>Esc</kbd> → cancel selection
+        </div>
+      </div>
+    </div>
+
+    <!-- Power Iteration -->
+    <div class="section">
+      <div class="section-head">
+        <span>Power Iteration</span>
+        <span style="color:var(--text3);text-transform:none;letter-spacing:0;font-size:9px">v⁽ᵏ⁾ = Gᵀ · v⁽ᵏ⁻¹⁾</span>
+      </div>
+      <div class="section-body" style="padding:0">
+        <div id="iterWrap">
+          <div class="empty-state" id="iterEmpty">Run the simulation to see convergence.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scores -->
+    <div class="section">
+      <div class="section-head">
+        <span>PageRank Scores</span>
+        <span style="color:var(--text3);text-transform:none;letter-spacing:0;font-size:9px" id="iterLabel">iter: 0</span>
+      </div>
+      <div class="section-body" id="scoresBody">
+        <div class="empty-state">Scores will appear here.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ─────────────────────────────────────────────
+   CONSTANTS
+───────────────────────────────────────────── */
+const MAX_NODES   = 8;
+const NODE_R      = 20;
+const SPEED_MS    = [2500, 1500, 800, 400, 150];
+const SPEED_LABEL = ['Slow', 'Med-Slow', 'Med', 'Fast', 'Very Fast'];
+
+/* ─────────────────────────────────────────────
+   STATE
+───────────────────────────────────────────── */
+const S = {
+  nodes:    [],          // { x, y, id }
+  edges:    new Set(),   // "i->j"
+  alpha:    0.85,
+  speedMs:  1500,
+  running:  false,
+  selected: null,        // node index awaiting edge-partner click
+  pagerank: [],          // current PR vector
+  history:  [],          // [{iter, v:[...]}]
+  iteration: 0,
+  surfer: {
+    node: 0,
+    phase: 'idle',       // 'idle' | 'moving' | 'teleporting'
+    fromNode: -1,
+    toNode:   -1,
+    progress: 0,
+    isTeleport: false,
+  },
+  stepTimer: null,
+};
+
+/* ─────────────────────────────────────────────
+   MATH
+───────────────────────────────────────────── */
+function buildS(n) {
+  const M = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) {
+    const out = [];
+    for (let j = 0; j < n; j++) {
+      if (i !== j && S.edges.has(`${i}->${j}`)) out.push(j);
+    }
+    const w = out.length === 0 ? 1 / n : 1 / out.length;
+    const targets = out.length === 0 ? [...Array(n).keys()] : out;
+    for (const j of targets) M[i * n + j] = w;
+  }
+  return M;
+}
+
+function buildG(n, alpha) {
+  const Sm = buildS(n);
+  const G  = new Float64Array(n * n);
+  const base = (1 - alpha) / n;
+  for (let k = 0; k < n * n; k++) G[k] = alpha * Sm[k] + base;
+  return G;
+}
+
+function iterate(n, G, v) {
+  const vn = new Float64Array(n);
+  for (let j = 0; j < n; j++) {
+    let s = 0;
+    for (let i = 0; i < n; i++) s += G[i * n + j] * v[i];
+    vn[j] = s;
+  }
+  let sum = 0; for (const x of vn) sum += x;
+  if (sum > 0) for (let j = 0; j < n; j++) vn[j] /= sum;
+  return vn;
+}
+
+function resetSim() {
+  const n = S.nodes.length;
+  S.pagerank  = new Array(n).fill(n > 0 ? 1 / n : 0);
+  S.history   = [];
+  S.iteration = 0;
+  if (n > 0) {
+    S.surfer.node      = Math.floor(Math.random() * n);
+    S.surfer.phase     = 'idle';
+    S.surfer.fromNode  = -1;
+    S.surfer.toNode    = -1;
+    S.surfer.isTeleport = false;
+    S.history.push({ iter: 0, v: [...S.pagerank] });
+  }
+}
+
+/* ─────────────────────────────────────────────
+   SIMULATION
+───────────────────────────────────────────── */
+function scheduleNext() {
+  if (S.running) S.stepTimer = setTimeout(doStep, S.speedMs);
+}
+
+function doStep() {
+  const n = S.nodes.length;
+  if (n === 0) return;
+
+  // Power iterate
+  const G    = buildG(n, S.alpha);
+  const vOld = new Float64Array(S.pagerank);
+  const vNew = iterate(n, G, vOld);
+  S.pagerank  = Array.from(vNew);
+  S.iteration++;
+
+  // Record history (keep last 12)
+  S.history.push({ iter: S.iteration, v: [...S.pagerank] });
+  if (S.history.length > 12) S.history.shift();
+
+  // Surfer decision
+  const curr = S.surfer.node;
+  const out  = [];
+  for (let j = 0; j < n; j++) {
+    if (curr !== j && S.edges.has(`${curr}->${j}`)) out.push(j);
+  }
+  // Roll exactly as the formula: with prob α follow S, with prob (1-α) teleport.
+  // For dangling nodes (no out-links) S row is uniform, so "following S" still
+  // picks a random node — but we label it correctly (not as a teleport).
+  let next, isTeleport;
+  const roll = Math.random();
+  if (roll < S.alpha) {
+    // Follow S (prob = α)
+    isTeleport = false;
+    if (out.length === 0) {
+      // Dangling node: S row is uniform over all n nodes
+      next = Math.floor(Math.random() * n);
+    } else {
+      next = out[Math.floor(Math.random() * out.length)];
+    }
+  } else {
+    // Teleport (prob = 1−α): uniform over all n nodes
+    isTeleport = true;
+    next = Math.floor(Math.random() * n);
+  }
+
+  S.surfer.fromNode   = curr;
+  S.surfer.toNode     = next;
+  S.surfer.isTeleport = isTeleport;
+  S.surfer.phase      = isTeleport ? 'teleporting' : 'moving';
+  S.surfer.progress   = 0;
+
+  // Surfer status message
+  const fl = `P${curr}`, tl = `P${next}`;
+  if (isTeleport) {
+    surferDot.style.background = 'var(--orange)';
+    surferMsg.innerHTML =
+      `<span class="hl-orange">✦ Teleport</span> ${fl} → ${tl}` +
+      ` <span class="dim">prob = 1−α = ${(1 - S.alpha).toFixed(2)}</span>`;
+  } else {
+    surferDot.style.background = 'var(--blue)';
+    surferMsg.innerHTML =
+      `<span class="hl-blue">→ Following edge</span> ${fl} → ${tl}` +
+      ` <span class="dim">prob = α = ${S.alpha.toFixed(2)}</span>`;
+  }
+
+  // After animation, finalize surfer position
+  const animDur = Math.min(S.speedMs * 0.6, 900);
+  setTimeout(() => {
+    S.surfer.node     = next;
+    S.surfer.phase    = 'idle';
+    S.surfer.progress = 1;
+    updateIterHistory();
+    updateScores();
+    scheduleNext();
+  }, animDur);
+
+  updateIterHistory();
+  updateScores();
+}
+
+function startSim() {
+  if (S.nodes.length === 0) return;
+  S.running = true;
+  btnPlayPause.textContent = '⏸ Pause';
+  btnPlayPause.classList.add('active');
+  scheduleNext();
+}
+
+function stopSim() {
+  S.running = false;
+  clearTimeout(S.stepTimer);
+  btnPlayPause.textContent = '▶ Run';
+  btnPlayPause.classList.remove('active');
+  S.surfer.phase = 'idle';
+}
+
+function togglePlay() { S.running ? stopSim() : startSim(); }
+
+function stepOnce() {
+  stopSim();
+  doStep();
+}
+
+/* ─────────────────────────────────────────────
+   CANVAS DRAWING
+───────────────────────────────────────────── */
+const graphCanvas = document.getElementById('graphCanvas');
+const gc = graphCanvas.getContext('2d');
+let lastTs = 0;
+
+function drawGraph(ts) {
+  const elapsed = ts - lastTs;
+  lastTs = ts;
+
+  // Advance surfer progress
+  const sur = S.surfer;
+  if (sur.phase !== 'idle' && sur.progress < 1) {
+    const dur = Math.min(S.speedMs * 0.6, 900);
+    sur.progress = Math.min(1, sur.progress + elapsed / dur);
+  }
+
+  const W = graphCanvas.width;
+  const H = graphCanvas.height;
+  gc.clearRect(0, 0, W, H);
+  gc.fillStyle = '#0A0A0F';
+  gc.fillRect(0, 0, W, H);
+
+  const n = S.nodes.length;
+  if (n === 0) {
+    gc.fillStyle = 'rgba(255,255,255,0.06)';
+    gc.font = "13px 'Fira Sans', sans-serif";
+    gc.textAlign = 'center';
+    gc.textBaseline = 'middle';
+    gc.fillText('Click anywhere to place a node', W / 2, H / 2);
+    return;
+  }
+
+  // Edges
+  for (const edge of S.edges) {
+    const [ai, bi] = edge.split('->').map(Number);
+    if (ai < n && bi < n) drawEdge(ai, bi);
+  }
+
+  // Surfer trail
+  if (sur.phase !== 'idle' && sur.fromNode >= 0 && sur.fromNode < n && sur.toNode < n) {
+    drawSurferTrail(sur);
+  }
+
+  // Nodes
+  for (let i = 0; i < n; i++) drawNode(i);
+}
+
+function drawEdge(ai, bi) {
+  const a = S.nodes[ai], b = S.nodes[bi];
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 1) return;
+  const ux = dx/dist, uy = dy/dist;
+
+  const hasBoth = S.edges.has(`${bi}->${ai}`);
+  const ox = hasBoth ? -uy * 7 : 0;
+  const oy = hasBoth ?  ux * 7 : 0;
+  const sx = a.x + ux * NODE_R + ox, sy = a.y + uy * NODE_R + oy;
+  const ex = b.x - ux * NODE_R + ox, ey = b.y - uy * NODE_R + oy;
+
+  const sur = S.surfer;
+  const isActive = (sur.phase === 'moving' && sur.fromNode === ai && sur.toNode === bi);
+
+  gc.beginPath();
+  gc.moveTo(sx, sy);
+  gc.lineTo(ex, ey);
+  gc.strokeStyle = isActive ? 'rgba(0,212,255,0.65)' : 'rgba(255,255,255,0.15)';
+  gc.lineWidth   = isActive ? 2 : 1.2;
+  gc.stroke();
+
+  // Arrowhead
+  const ang = Math.atan2(ey - sy, ex - sx);
+  gc.beginPath();
+  gc.moveTo(ex, ey);
+  gc.lineTo(ex - 10*Math.cos(ang-0.42), ey - 10*Math.sin(ang-0.42));
+  gc.lineTo(ex - 10*Math.cos(ang+0.42), ey - 10*Math.sin(ang+0.42));
+  gc.closePath();
+  gc.fillStyle = isActive ? 'rgba(0,212,255,0.8)' : 'rgba(255,255,255,0.22)';
+  gc.fill();
+}
+
+function drawNode(i) {
+  const nd = S.nodes[i];
+  const isSel    = i === S.selected;
+  const isSurfer = i === S.surfer.node && S.surfer.phase === 'idle';
+  const isTeleport = S.surfer.isTeleport;
+
+  // Glow
+  if (isSurfer || isSel) {
+    const col = (isSurfer && isTeleport) ? '#F97316' : isSel ? '#8B5CF6' : '#00D4FF';
+    const grd = gc.createRadialGradient(nd.x, nd.y, NODE_R*0.5, nd.x, nd.y, NODE_R*2.4);
+    grd.addColorStop(0, col + '44');
+    grd.addColorStop(1, col + '00');
+    gc.beginPath();
+    gc.arc(nd.x, nd.y, NODE_R*2.4, 0, Math.PI*2);
+    gc.fillStyle = grd;
+    gc.fill();
+  }
+
+  // Fill
+  gc.beginPath();
+  gc.arc(nd.x, nd.y, NODE_R, 0, Math.PI*2);
+  gc.fillStyle = '#0e0e1c';
+  gc.fill();
+
+  // Border
+  const col = (isSurfer && isTeleport) ? '#F97316' :
+              isSurfer ? '#00D4FF' :
+              isSel    ? '#8B5CF6' : 'rgba(255,255,255,0.2)';
+  gc.strokeStyle = col;
+  gc.lineWidth   = (isSurfer || isSel) ? 2.5 : 1.5;
+  gc.stroke();
+
+  // Label
+  gc.font = `500 12px 'Fira Code', monospace`;
+  gc.fillStyle = isSurfer ? '#fff' : isSel ? '#c4b5fd' : '#8080b0';
+  gc.textAlign = 'center';
+  gc.textBaseline = 'middle';
+  gc.fillText(`P${i}`, nd.x, nd.y);
+}
+
+function drawSurferTrail(sur) {
+  const n = S.nodes.length;
+  const a = S.nodes[sur.fromNode], b = S.nodes[sur.toNode];
+  const p = sur.progress;
+  const hasBoth = S.edges.has(`${sur.toNode}->${sur.fromNode}`);
+  const dx = b.x-a.x, dy = b.y-a.y, dist = Math.sqrt(dx*dx+dy*dy)||1;
+  const ox = (hasBoth && !sur.isTeleport) ? -(dy/dist)*7 : 0;
+  const oy = (hasBoth && !sur.isTeleport) ?  (dx/dist)*7 : 0;
+  const sx = a.x+ox, sy = a.y+oy;
+  const ex = b.x+ox, ey = b.y+oy;
+  const x = sx + (ex-sx)*p, y = sy + (ey-sy)*p;
+
+  const col = sur.isTeleport ? '#F97316' : '#00D4FF';
+
+  if (sur.isTeleport) {
+    gc.setLineDash([5, 5]);
+    gc.beginPath();
+    gc.moveTo(sx, sy);
+    gc.lineTo(ex, ey);
+    gc.strokeStyle = 'rgba(249,115,22,0.28)';
+    gc.lineWidth = 1.5;
+    gc.stroke();
+    gc.setLineDash([]);
+  }
+
+  // Glow
+  const grd = gc.createRadialGradient(x, y, 0, x, y, 16);
+  grd.addColorStop(0, col + 'cc');
+  grd.addColorStop(1, col + '00');
+  gc.beginPath();
+  gc.arc(x, y, 16, 0, Math.PI*2);
+  gc.fillStyle = grd;
+  gc.fill();
+
+  // Dot
+  gc.beginPath();
+  gc.arc(x, y, 6, 0, Math.PI*2);
+  gc.fillStyle = col;
+  gc.fill();
+}
+
+/* ─────────────────────────────────────────────
+   EQUATION HTML (stacked, no overflow)
+───────────────────────────────────────────── */
+function matHTML(data, n, cellClass) {
+  let rows = '';
+  for (let i = 0; i < n; i++) {
+    let cells = '';
+    for (let j = 0; j < n; j++) {
+      const v = data ? data[i*n+j] : 1;
+      const isZero = v < 1e-9;
+      const cls = isZero ? 'mat-cell zero' : `mat-cell ${cellClass||''}`;
+      cells += `<div class="${cls}">${isZero ? '0' : v.toFixed(3)}</div>`;
+    }
+    rows += `<div class="mat-row">${cells}</div>`;
+  }
+  return `<div class="mat"><div class="mat-bl"></div><div class="mat-body">${rows}</div><div class="mat-br"></div></div>`;
+}
+
+function updateEquation() {
+  const eqBody  = document.getElementById('eqBody');
+  const matDim  = document.getElementById('matrixDim');
+  const n = S.nodes.length;
+
+  if (n === 0) {
+    eqBody.innerHTML = `<div class="empty-state">
+      Add nodes and edges to see the matrix.<br><br>
+      <kbd>Click</kbd> empty area → place node<br>
+      <kbd>Click</kbd> node → select it<br>
+      <kbd>Click</kbd> another node → connect<br>
+      <kbd>Right-click</kbd> node → delete<br>
+      <kbd>Esc</kbd> → cancel selection
+    </div>`;
+    matDim.textContent = '';
+    return;
+  }
+
+  matDim.textContent = `${n}×${n}`;
+  const Sm   = buildS(n);
+  const Gm   = buildG(n, S.alpha);
+  const ones = null; // rendered as all-1 for J display
+
+  const a1 = S.alpha.toFixed(2);
+  const a2 = (1 - S.alpha).toFixed(2);
+
+  eqBody.innerHTML = `
+    <div class="eq-symbolic">
+      <span class="sym-g">G</span>
+      <span>=</span>
+      <span class="sym-a" id="symA1">${a1}</span>
+      <span>·</span>
+      <span class="sym-s">S</span>
+      <span>+</span>
+      <span>(1−</span><span class="sym-a" id="symA2">${a1}</span><span>)</span>
+      <span>·</span>
+      <span>1/${n}</span>
+      <span>·</span>
+      <span class="sym-j">𝟏</span>
+    </div>
+    <div class="eq-stacked">
+      <div class="eq-line">
+        <div class="eq-leader">= <span class="sc blue">${a1}</span> ·</div>
+        ${matHTML(Sm, n, 'green')}
+      </div>
+      <div class="eq-line">
+        <div class="eq-leader">+ <span class="sc orange">${a2}</span>·<span class="sc" style="color:var(--text2)">1/${n}</span> ·</div>
+        ${matHTML(ones, n, 'purple')}
+      </div>
+      <div class="eq-line">
+        <div class="eq-leader"><span class="sc blue">G</span> =</div>
+        ${matHTML(Gm, n, 'blue')}
+      </div>
+    </div>`;
+}
+
+function flashAlpha() {
+  // Re-render so we get fresh elements, then flash
+  updateEquation();
+  for (const id of ['symA1', 'symA2']) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  }
+}
+
+/* ─────────────────────────────────────────────
+   ITERATION HISTORY
+───────────────────────────────────────────── */
+function updateIterHistory() {
+  const wrap  = document.getElementById('iterWrap');
+  const empty = document.getElementById('iterEmpty');
+  const n = S.nodes.length;
+
+  if (S.history.length === 0 || n === 0) {
+    wrap.innerHTML = `<div class="empty-state" id="iterEmpty">Run the simulation to see convergence.</div>`;
+    return;
+  }
+
+  // Build header
+  let hdrCells = `<th>k</th>`;
+  for (let i = 0; i < n; i++) hdrCells += `<th>P${i}</th>`;
+
+  // Build rows
+  let rows = '';
+  for (let h = 0; h < S.history.length; h++) {
+    const entry = S.history[h];
+    const isCurrent = h === S.history.length - 1;
+    const prev = h > 0 ? S.history[h-1] : null;
+
+    let cells = `<td>${entry.iter === 0 ? 'k=0' : `k=${entry.iter}`}</td>`;
+    for (let i = 0; i < n; i++) {
+      const v = entry.v[i];
+      const changed = prev && Math.abs(v - prev.v[i]) > 0.0005;
+      const cls = changed && !isCurrent ? 'class="changed-cell"' : '';
+      cells += `<td style="${changed && !isCurrent ? 'color:var(--green)' : ''}">${v.toFixed(4)}</td>`;
+    }
+    rows += `<tr class="${isCurrent ? 'current' : ''}">${cells}</tr>`;
+  }
+
+  wrap.innerHTML = `<table class="iter-table">
+    <thead><tr>${hdrCells}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+
+  // Scroll to bottom
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+/* ─────────────────────────────────────────────
+   SCORES
+───────────────────────────────────────────── */
+function updateScores() {
+  const body  = document.getElementById('scoresBody');
+  const label = document.getElementById('iterLabel');
+  const n = S.nodes.length;
+
+  label.textContent = `iter: ${S.iteration}`;
+
+  if (n === 0) {
+    body.innerHTML = `<div class="empty-state">Scores will appear here.</div>`;
+    return;
+  }
+
+  const maxPR = Math.max(...S.pagerank, 1e-9);
+  let html = '';
+  // Sort by score descending for display
+  const order = [...Array(n).keys()].sort((a,b) => S.pagerank[b] - S.pagerank[a]);
+  for (const i of order) {
+    const pr = S.pagerank[i] || 0;
+    const pct = (pr / maxPR * 100).toFixed(1);
+    const isSurfer = i === S.surfer.node;
+    html += `<div class="score-row">
+      <div class="score-label${isSurfer ? '" style="color:var(--blue)' : ''}"">P${i}</div>
+      <div class="score-track">
+        <div class="score-fill${isSurfer ? ' surfer' : ''}" style="width:${pct}%"></div>
+      </div>
+      <div class="score-val${isSurfer ? ' surfer' : ''}">${pr.toFixed(4)}</div>
+    </div>`;
+  }
+  body.innerHTML = html;
+}
+
+/* ─────────────────────────────────────────────
+   GRAPH INTERACTION  (fixed logic)
+───────────────────────────────────────────── */
+const graphHint = document.getElementById('graphHint');
+
+function updateHint() {
+  if (S.selected !== null) {
+    graphHint.textContent = `P${S.selected} selected — click another node to connect · Esc to cancel`;
+    graphHint.classList.add('active-hint');
+  } else {
+    graphHint.textContent = 'Click empty area to place a node (max 8) · Click node to select';
+    graphHint.classList.remove('active-hint');
+  }
+}
+
+function nodeAt(x, y) {
+  for (let i = S.nodes.length - 1; i >= 0; i--) {
+    const nd = S.nodes[i];
+    const dx = nd.x - x, dy = nd.y - y;
+    if (dx*dx + dy*dy <= (NODE_R+6)*(NODE_R+6)) return i;
+  }
+  return -1;
+}
+
+// Use 'click' to avoid mousedown + mouseup drag confusion
+graphCanvas.addEventListener('click', e => {
+  const rect = graphCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const hit = nodeAt(x, y);
+
+  if (hit === -1) {
+    // Clicked empty space
+    if (S.selected !== null) {
+      // Just cancel selection, do NOT add a node
+      S.selected = null;
+    } else if (S.nodes.length < MAX_NODES) {
+      // Add node only when nothing is selected
+      S.nodes.push({ id: S.nodes.length, x, y });
+      resetSim();
+      updateEquation();
+      updateScores();
+      updateIterHistory();
+      updateNodeCount();
+    }
+  } else {
+    // Clicked a node
+    if (S.selected === null) {
+      S.selected = hit;                          // select
+    } else if (S.selected === hit) {
+      S.selected = null;                         // deselect same
+    } else {
+      // Toggle edge selected → hit
+      const key = `${S.selected}->${hit}`;
+      if (S.edges.has(key)) S.edges.delete(key);
+      else S.edges.add(key);
+      S.selected = null;
+      resetSim();
+      updateEquation();
+      updateScores();
+      updateIterHistory();
+    }
+  }
+  updateHint();
+});
+
+graphCanvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const rect = graphCanvas.getBoundingClientRect();
+  const hit  = nodeAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (hit === -1) return;
+  stopSim();
+  S.nodes.splice(hit, 1);
+  const newEdges = new Set();
+  for (const edge of S.edges) {
+    const [a, b] = edge.split('->').map(Number);
+    if (a === hit || b === hit) continue;
+    newEdges.add(`${a > hit ? a-1 : a}->${b > hit ? b-1 : b}`);
+  }
+  S.edges = newEdges;
+  S.nodes.forEach((nd, i) => nd.id = i);
+  if (S.selected !== null) S.selected = null;
+  resetSim();
+  updateEquation();
+  updateScores();
+  updateIterHistory();
+  updateNodeCount();
+  updateHint();
+  surferMsg.innerHTML = 'Node removed.';
+  surferDot.style.background = 'var(--blue)';
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Escape') { S.selected = null; updateHint(); }
+  if (e.code === 'Space')  { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); stepOnce(); }
+});
+
+function updateNodeCount() {
+  // graphHint shows instructions; nodeCount is in the hint
+}
+
+/* ─────────────────────────────────────────────
+   CONTROLS
+───────────────────────────────────────────── */
+const surferDot = document.getElementById('surferDot');
+const surferMsg = document.getElementById('surferMsg');
+const btnPlayPause = document.getElementById('btnPlayPause');
+
+document.getElementById('sliderAlpha').addEventListener('input', e => {
+  S.alpha = e.target.value / 100;
+  document.getElementById('lblAlpha').textContent = S.alpha.toFixed(2);
+  flashAlpha();
+  resetSim();
+  updateScores();
+  updateIterHistory();
+});
+
+document.getElementById('sliderSpeed').addEventListener('input', e => {
+  const i = parseInt(e.target.value) - 1;
+  S.speedMs = SPEED_MS[i];
+  document.getElementById('lblSpeed').textContent = SPEED_LABEL[i];
+  if (S.running) { clearTimeout(S.stepTimer); scheduleNext(); }
+});
+
+btnPlayPause.addEventListener('click', togglePlay);
+document.getElementById('btnStep').addEventListener('click', stepOnce);
+
+document.getElementById('btnResetPR').addEventListener('click', () => {
+  stopSim();
+  resetSim();
+  updateEquation();
+  updateScores();
+  updateIterHistory();
+  surferMsg.innerHTML = 'PageRank reset to uniform.';
+  surferDot.style.background = 'var(--blue)';
+  btnPlayPause.textContent = '▶ Run';
+  btnPlayPause.classList.remove('active');
+});
+
+document.getElementById('btnRandom').addEventListener('click', () => {
+  stopSim();
+  S.nodes = [];
+  S.edges = new Set();
+  S.selected = null;
+  const n = Math.floor(Math.random() * 4) + 4; // 4–7 nodes
+  const cx = graphCanvas.width / 2;
+  const cy = graphCanvas.height / 2;
+  const r  = Math.min(cx, cy) - NODE_R - 20;
+  for (let i = 0; i < n; i++) {
+    const ang = (2*Math.PI*i/n) - Math.PI/2;
+    S.nodes.push({ id: i, x: cx + r*Math.cos(ang), y: cy + r*Math.sin(ang) });
+  }
+  for (let i = 0; i < n; i++) {
+    let outs = 0;
+    for (let j = 0; j < n; j++) {
+      if (i !== j && Math.random() < 0.35) { S.edges.add(`${i}->${j}`); outs++; }
+    }
+    if (outs === 0 && n > 1) S.edges.add(`${i}->${(i+1)%n}`);
+  }
+  resetSim();
+  updateEquation();
+  updateScores();
+  updateIterHistory();
+  updateHint();
+  surferMsg.innerHTML = `Generated ${n}-node graph.`;
+  surferDot.style.background = 'var(--blue)';
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  stopSim();
+  S.nodes = []; S.edges = new Set(); S.selected = null;
+  resetSim();
+  updateEquation();
+  updateScores();
+  updateIterHistory();
+  updateHint();
+  surferMsg.innerHTML = 'Add nodes to begin.';
+  surferDot.style.background = 'var(--blue)';
+});
+
+/* ─────────────────────────────────────────────
+   RESIZE + INIT
+───────────────────────────────────────────── */
+function resizeGraph() {
+  const panel = document.querySelector('.graph-panel');
+  const header = panel.querySelector('.graph-header');
+  const surferBar = panel.querySelector('.surfer-bar');
+  graphCanvas.width  = Math.floor(panel.clientWidth);
+  graphCanvas.height = Math.floor(panel.clientHeight - header.offsetHeight - surferBar.offsetHeight);
+}
+
+new ResizeObserver(() => { resizeGraph(); updateEquation(); }).observe(document.querySelector('.graph-panel'));
+new ResizeObserver(() => { updateEquation(); }).observe(document.querySelector('.info-panel'));
+
+resizeGraph();
+updateEquation();
+updateScores();
+updateIterHistory();
+updateHint();
+
+// Animation loop
+function loop(ts) {
+  drawGraph(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
