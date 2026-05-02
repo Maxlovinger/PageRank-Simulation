@@ -510,16 +510,19 @@ const S = {
 /* ─────────────────────────────────────────────
    MATH
 ───────────────────────────────────────────── */
+// Column-stochastic S: column j holds the out-link distribution of node j.
+// S[i][j] = probability a surfer at node j moves to node i.
+// Each column sums to 1.
 function buildS(n) {
   const M = new Float64Array(n * n);
-  for (let i = 0; i < n; i++) {
+  for (let j = 0; j < n; j++) {           // j = source node (column)
     const out = [];
-    for (let j = 0; j < n; j++) {
-      if (i !== j && S.edges.has(`${i}->${j}`)) out.push(j);
+    for (let i = 0; i < n; i++) {
+      if (i !== j && S.edges.has(`${j}->${i}`)) out.push(i);
     }
-    const w = out.length === 0 ? 1 / n : 1 / out.length;
+    const w       = out.length === 0 ? 1 / n : 1 / out.length;
     const targets = out.length === 0 ? [...Array(n).keys()] : out;
-    for (const j of targets) M[i * n + j] = w;
+    for (const i of targets) M[i * n + j] = w; // place in column j
   }
   return M;
 }
@@ -532,15 +535,16 @@ function buildG(n, alpha) {
   return G;
 }
 
+// v_{k+1} = G · v_k  (G is column-stochastic, so G·v preserves sum = 1)
 function iterate(n, G, v) {
   const vn = new Float64Array(n);
-  for (let j = 0; j < n; j++) {
+  for (let i = 0; i < n; i++) {
     let s = 0;
-    for (let i = 0; i < n; i++) s += G[i * n + j] * v[i];
-    vn[j] = s;
+    for (let j = 0; j < n; j++) s += G[i * n + j] * v[j];
+    vn[i] = s;
   }
   let sum = 0; for (const x of vn) sum += x;
-  if (sum > 0) for (let j = 0; j < n; j++) vn[j] /= sum;
+  if (sum > 0) for (let i = 0; i < n; i++) vn[i] /= sum;
   return vn;
 }
 
